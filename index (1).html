@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Space Blaster - Retro Arcade Grid Shooter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* CSS RESET & SYSTEM VARIABLES */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-dark: #0b0e14;
+            --neon-blue: #00d2ff;
+            --neon-green: #00ff66;
+            --neon-pink: #ff007f;
+            --neon-orange: #ff9f43;
+            --panel-bg: rgba(20, 27, 41, 0.85);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --font-arcade: 'Fredoka', system-ui, sans-serif;
+            --shadow-glow: 0 0 20px rgba(0, 210, 255, 0.4);
+            --radius-lg: 20px;
+            --radius-md: 12px;
+        }
+
+        body {
+            font-family: var(--font-arcade);
+            background-color: var(--bg-dark);
+            color: #ffffff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* MASTER SCREEN CONTAINER */
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 440px;
+            max-height: 850px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #161f33 0%, #0b0e14 100%);
+        }
+
+        /* ACTIVE GAMEPLAY HUD */
+        #hud-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            padding: 12px 18px;
+            border-radius: var(--radius-md);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #hud-header.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .hud-hearts {
+            display: flex;
+            gap: 4px;
+            font-size: 1.4rem;
+            letter-spacing: -2px;
+        }
+
+        .hud-title {
+            color: var(--neon-green);
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
+        }
+
+        .hud-score {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ffffff;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        /* CANVAS PLAYING WINDOW OVERVIEW Wrapper */
+        #stage-wrapper {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 12px 0;
+            position: relative;
+        }
+
+        canvas {
+            background: rgba(11, 14, 20, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(0, 210, 255, 0.05);
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 4 / 6; /* 400x600 Fixed Resolution Box Scaling Aspect Template Ratio */
+        }
+
+        /* STATE-DRIVEN OVERLAY INTERFACES */
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 14, 20, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            z-index: 20;
+            border-radius: var(--radius-lg);
+            transition: all 0.3s ease;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .screen-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.96);
+        }
+
+        /* TYPOGRAPHY AND RETRO BADGES */
+        .hero-badge {
+            font-size: 4.5rem;
+            margin-bottom: 12px;
+            display: block;
+            animation: float 3s infinite ease-in-out;
+            filter: drop-shadow(0 0 15px rgba(0, 210, 255, 0.3));
+        }
+
+        .game-title {
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: #ffffff;
+            text-align: center;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px rgba(0, 210, 255, 0.6), 0 0 30px rgba(0, 210, 255, 0.2);
+        }
+
+        .card-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            width: 100%;
+            max-width: 300px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .instructions-text {
+            font-size: 0.95rem;
+            color: #b2bec3;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .instructions-text b {
+            color: var(--neon-blue);
+        }
+
+        /* INTERACTIVE ACTIONS INFRASTRUCTURE */
+        .btn-action {
+            width: 100%;
+            max-width: 220px;
+            background: linear-gradient(135deg, var(--neon-blue) 0%, #0097e6 100%);
+            color: #ffffff;
+            border: none;
+            padding: 14px 28px;
+            font-family: var(--font-arcade);
+            font-size: 1.3rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(0, 210, 255, 0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-action:hover, .btn-action:active {
+            transform: scale(1.04);
+            box-shadow: 0 8px 24px rgba(0, 210, 255, 0.6);
+        }
+
+        .btn-action:active {
+            transform: scale(0.98);
+        }
+
+        /* SCREEN SHAKE ENGINES */
+        .shake-fx {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(3px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <header id="hud-header">
+            <div id="lives-container" class="hud-hearts">❤️❤️❤️</div>
+            <div class="hud-title">SPACE BLASTER</div>
+            <div id="score-label" class="hud-score">000</div>
+        </header>
+
+        <main id="stage-wrapper">
+            <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+            <div id="screen-start" class="screen-overlay">
+                <span class="hero-badge">🚀</span>
+                <h1 class="game-title">SPACE BLASTER</h1>
+                <div class="card-panel">
+                    <p class="instructions-text">
+                        Drag horizontally or use <b>Arrow Keys / A & D</b> to steer the ship.<br><br>
+                        Lasers fire automatically! Destroy the entire swarm.
+                    </p>
+                </div>
+                <button id="start-btn" class="btn-action">LAUNCH</button>
+            </div>
+
+            <div id="screen-end" class="screen-overlay hidden">
+                <span id="end-icon" class="hero-badge">💥</span>
+                <h1 id="end-title" class="game-title">GAME OVER</h1>
+                <div class="card-panel" style="margin-bottom: 32px;">
+                    <p id="end-msg" class="instructions-text">The invasion reached our perimeter boundary line!</p>
+                </div>
+                <button id="restart-btn" class="btn-action">TRY AGAIN</button>
+            </div>
+
+        </main>
+
+    </div>
+
+    <script>
+        class SoundController {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playOscillator(freq, type, duration, volumeStart) {
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gainNode = this.ctx.createGain();
+
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gainNode.gain.setValueAtTime(volumeStart, this.ctx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) { console.log("Audio Engine Bypass"); }
+            }
+
+            laser() { this.playOscillator(580, 'triangle', 0.1, 0.15); }
+            explosion() { this.playOscillator(140, 'sawtooth', 0.25, 0.3); }
+            damage() { this.playOscillator(220, 'sawtooth', 0.2, 0.4); }
+            click() { this.playOscillator(440, 'sine', 0.08, 0.2); }
+            victory() {
+                this.init();
+                this.playOscillator(523.25, 'sine', 0.15, 0.25);
+                setTimeout(() => this.playOscillator(659.25, 'sine', 0.15, 0.25), 100);
+                setTimeout(() => this.playOscillator(783.99, 'sine', 0.3, 0.3), 200);
+            }
+        }
+        const sfx = new SoundController();
+    </script>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // GAME LOOPS METRICS SIMULATOR TIMING
+        let lastTime = 0;
+        let accumulator = 0;
+        const TIME_STEP = 1000 / 60; // Rigid physical 60FPS physics step sequence update loop
+
+        // ARCHITECTURE LAYOUT STATE ENTITIES
+        let gameState = 'START'; // START | PLAYING | END
+        let score = 0;
+        let lives = 3;
+        let ship = { x: 200, y: 530, w: 32, h: 24, speed: 320, isDragging: false };
+        
+        let lasers = [];
+        let laserTimer = 0;
+        const LASER_COOLDOWN = 320; // Laser fire cadence speed rate threshold
+
+        let aliens = [];
+        let alienDirection = 1; // 1 = Right, -1 = Left
+        let alienMoveTimer = 0;
+        let alienMoveInterval = 800; // Physics speed tick rate of step sequence downshifts
+        let alienStepDownCount = 0;
+        let alienTotalCount = 0;
+
+        let particles = [];
+        let stars = [];
+
+        // INPUT CACHE BUFFER
+        const keys = {};
+
+        // INITIALIZE SIMULATION INFRASTRUCTURE POINTER LISTENERS
+        window.addEventListener('keydown', e => { if(e.key === ' ' || e.key === 'Spacebar') e.preventDefault(); keys[e.key] = true; });
+        window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+        // CROSS-PLATFORM INTERACTION POINTER UNIFICATION MATRIX
+        canvas.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', () => ship.isDragging = false);
+
+        canvas.addEventListener('touchstart', e => { handlePointerDown(e.touches[0]); }, { passive: true });
+        window.addEventListener('touchmove', e => { if (gameState === 'PLAYING') { e.preventDefault(); handlePointerMove(e.touches[0]); } }, { passive: false });
+        window.addEventListener('touchend', () => ship.isDragging = false);
+
+        document.getElementById('start-btn').addEventListener('click', bootGame);
+        document.getElementById('restart-btn').addEventListener('click', bootGame);
+
+        // INITIALIZE STRUCTURAL AMBIENT STARFIELD MATRIX
+        for (let i = 0; i < 45; i++) {
+            stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, speed: 20 + Math.random() * 40, size: 0.5 + Math.random() * 1.5 });
+        }
+
+        function handlePointerDown(p) {
+            if (gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect();
+            // Map pointer to internal template grid domain resolution limits coordinates (400x600)
+            const clientX = (p.clientX - rect.left) * (canvas.width / rect.width);
+            
+            // Check steering boundary proximity thresholds
+            if (clientX >= ship.x - 30 && clientX <= ship.x + ship.w + 30) {
+                ship.isDragging = true;
+            }
+        }
+
+        function handlePointerMove(p) {
+            if (gameState !== 'PLAYING' || !ship.isDragging) return;
+            const rect = canvas.getBoundingClientRect();
+            const clientX = (p.clientX - rect.left) * (canvas.width / rect.width);
+            
+            // Instantly snap player center profile coordinates inside pointer axis bounds
+            ship.x = clientX - ship.w / 2;
+            clampShipPosition();
+        }
+
+        function clampShipPosition() {
+            if (ship.x < 10) ship.x = 10;
+            if (ship.x > canvas.width - ship.w - 10) ship.x = canvas.width - ship.w - 10;
+        }
+
+        function generateAlienSwarm() {
+            aliens = [];
+            const colors = [varColor('--neon-pink', '#ff007f'), varColor('--neon-orange', '#ff9f43'), varColor('--neon-blue', '#00d2ff')];
+            const rows = 4;
+            const cols = 6;
+            const alienW = 26;
+            const alienH = 20;
+            const padX = 16;
+            const padY = 16;
+            const startX = (canvas.width - (cols * (alienW + padX) - padX)) / 2;
+            const startY = 60;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    aliens.push({
+                        x: startX + c * (alienW + padX),
+                        y: startY + r * (alienH + padY),
+                        w: alienW,
+                        h: alienH,
+                        color: colors[r % colors.length],
+                        animOffset: Math.random() * Math.PI
+                    });
+                }
+            }
+            alienTotalCount = aliens.length;
+            alienDirection = 1;
+            alienMoveInterval = 850;
+            alienStepDownCount = 0;
+        }
+
+        function createBurst(x, y, color) {
+            for (let i = 0; i < 10; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 40 + Math.random() * 80;
+                particles.push({
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: 1.5 + Math.random() * 2,
+                    color: color,
+                    alpha: 1,
+                    decay: 1.5 + Math.random() * 1.5
+                });
+            }
+        }
+
+        function bootGame() {
+            sfx.click();
+            score = 0;
+            lives = 3;
+            lasers = [];
+            particles = [];
+            laserTimer = 0;
+            alienMoveTimer = 0;
+            
+            ship.x = canvas.width / 2 - ship.w / 2;
+            ship.isDragging = false;
+
+            document.getElementById('score-label').textContent = "000";
+            document.getElementById('lives-container').textContent = "❤️❤️❤️";
+            
+            generateAlienSwarm();
+
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('screen-end').classList.add('hidden');
+            document.getElementById('hud-header').classList.add('active');
+
+            gameState = 'PLAYING';
+            lastTime = performance.now();
+            accumulator = 0;
+            requestAnimationFrame(masterLoop);
+        }
+
+        function triggerEndState(isVictory) {
+            gameState = 'END';
+            document.getElementById('hud-header').classList.remove('active');
+            
+            const endScreen = document.getElementById('screen-end');
+            const endIcon = document.getElementById('end-icon');
+            const endTitle = document.getElementById('end-title');
+            const endMsg = document.getElementById('end-msg');
+
+            if (isVictory) {
+                sfx.victory();
+                endIcon.textContent = "🏆";
+                endTitle.textContent = "VICTORY!";
+                endTitle.style.color = "var(--neon-green)";
+                endTitle.style.textShadow = "0 0 15px rgba(0, 255, 102, 0.6)";
+                endMsg.textContent = "The planetary grid sector is clear. Mission complete!";
+            } else {
+                sfx.damage();
+                endIcon.textContent = "💥";
+                endTitle.textContent = "GAME OVER";
+                endTitle.style.color = "var(--neon-pink)";
+                endTitle.style.textShadow = "0 0 15px rgba(255, 0, 127, 0.6)";
+                endMsg.textContent = "The swarm penetrated our baseline defenses.";
+            }
+
+            endScreen.classList.remove('hidden');
+        }
+
+        function applyScreenShake() {
+            const container = document.getElementById('game-container');
+            container.classList.add('shake-fx');
+            setTimeout(() => container.classList.remove('shake-fx'), 300);
+        }
+
+        // TIME-BASED SIMULATION DELTA CORE FRAMEWORK LOOP
+        function masterLoop(timestamp) {
+            if (gameState !== 'PLAYING') return;
+
+            let dt = timestamp - lastTime;
+            if (dt > 100) dt = 100; // Protection cap against frame dropping dropouts
+            lastTime = timestamp;
+
+            accumulator += dt;
+
+            while (accumulator >= TIME_STEP) {
+                updatePhysicsStep(TIME_STEP / 1000);
+                accumulator -= TIME_STEP;
+            }
+
+            updateVisualsStep(dt / 1000);
+            renderScene();
+
+            requestAnimationFrame(masterLoop);
+        }
+
+        function updatePhysicsStep(dt) {
+            // DESKTOP KEYBOARD CONTROLS EVALUATION
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                ship.x -= ship.speed * dt;
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                ship.x += ship.speed * dt;
+            }
+            clampShipPosition();
+
+            // SPACEBAR FIRES PROJECTILES
+            if (keys[' '] || keys['Spacebar']) {
+                if (laserTimer <= 0) {
+                    lasers.push({ x: ship.x + ship.w / 2 - 2, y: ship.y, w: 4, h: 12, speed: 450 });
+                    sfx.laser();
+                    laserTimer = LASER_COOLDOWN;
+                }
+            }
+
+            // MOBILE AUTOFIRING AUTOMATION ENGINE CADENCE LOGIC
+            if (laserTimer > 0) {
+                laserTimer -= dt * 1000;
+            } else if (ship.isDragging) {
+                lasers.push({ x: ship.x + ship.w / 2 - 2, y: ship.y, w: 4, h: 12, speed: 450 });
+                sfx.laser();
+                laserTimer = LASER_COOLDOWN;
+            }
+
+            // PROJECTILE TRANSFORMATION MATH
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                lasers[i].y -= lasers[i].speed * dt;
+                if (lasers[i].y < -20) {
+                    lasers.splice(i, 1);
+                }
+            }
+
+            // ALIEN GRID MATRIX STATE SYNCHRONIZATION RUN TIME
+            alienMoveTimer += dt * 1000;
+            if (alienMoveTimer >= alienMoveInterval) {
+                alienMoveTimer = 0;
+                let shiftDown = false;
+
+                // Border check evaluation step parameters
+                for (let i = 0; i < aliens.length; i++) {
+                    let nextX = aliens[i].x + (20 * alienDirection);
+                    if (nextX < 12 || nextX > canvas.width - aliens[i].w - 12) {
+                        shiftDown = true;
+                        break;
+                    }
+                }
+
+                if (shiftDown) {
+                    alienDirection *= -1;
+                    alienStepDownCount++;
+                    // Linearly increase pace sequence every downshift step
+                    alienMoveInterval = Math.max(120, alienMoveInterval - 65);
+                    for (let i = 0; i < aliens.length; i++) {
+                        aliens[i].y += 18;
+                        // Boundary perimeter baseline breach trigger evaluation
+                        if (aliens[i].y + aliens[i].h >= ship.y) {
+                            triggerEndState(false);
+                            return;
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < aliens.length; i++) {
+                        aliens[i].x += (16 * alienDirection);
+                    }
+                }
+            }
+
+            // INTERSECTING ARRAY ARRAY COLLISION CORES (LENIENT HITBOX PADDING MATRIX)
+            const hitPadding = 6; 
+
+            laserLoop: for (let l = lasers.length - 1; l >= 0; l--) {
+                const laser = lasers[l];
+                
+                for (let a = aliens.length - 1; a >= 0; a--) {
+                    const alien = aliens[a];
+
+                    if (laser.x + laser.w >= alien.x + hitPadding &&
+                        laser.x <= alien.x + alien.w - hitPadding &&
+                        laser.y + laser.h >= alien.y + hitPadding &&
+                        laser.y <= alien.y + alien.h - hitPadding) {
+                        
+                        // Collision Confirmed
+                        sfx.explosion();
+                        createBurst(alien.x + alien.w / 2, alien.y + alien.h / 2, alien.color);
+                        
+                        score += 25;
+                        document.getElementById('score-label').textContent = String(score).padStart(3, '0');
+                        
+                        aliens.splice(a, 1);
+                        lasers.splice(l, 1);
+
+                        // Adaptive dynamic progression scaling pacing calculation adjustments based on kills
+                        alienMoveInterval = Math.max(90, alienMoveInterval - 12);
+
+                        if (aliens.length === 0) {
+                            triggerEndState(true);
+                        }
+                        
+                        continue laserLoop;
+                    }
+                }
+            }
+        }
+
+        function updateVisualsStep(dt) {
+            // Particle system vector integrations
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.alpha -= p.decay * dt;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Ambient background star drift loop engine
+            for (let i = 0; i < stars.length; i++) {
+                stars[i].y += stars[i].speed * dt;
+                if (stars[i].y > canvas.height) {
+                    stars[i].y = -10;
+                    stars[i].x = Math.random() * canvas.width;
+                }
+            }
+        }
+
+        // SCENE GRAPH MATRIX PRESENTATION DRAWINGS
+        function renderScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // DRAW BACKDROP STAR SYSTEMS
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < stars.length; i++) {
+                ctx.globalAlpha = 0.2 + Math.sin(stars[i].y * 0.05) * 0.3 + 0.4;
+                ctx.fillRect(stars[i].x, stars[i].y, stars[i].size, stars[i].size);
+            }
+            ctx.globalAlpha = 1.0;
+
+            // DRAW LASER AMMUNITION ELEMENTS
+            ctx.fillStyle = varColor('--neon-blue', '#00d2ff');
+            for (let i = 0; i < lasers.length; i++) {
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = varColor('--neon-blue', '#00d2ff');
+                ctx.fillRect(lasers[i].x, lasers[i].y, lasers[i].w, lasers[i].h);
+            }
+            ctx.shadowBlur = 0; // Clear blur system registers instantly for layout operations performance
+
+            // DRAW ALIEN MATRIX UNITS WITH BREATHING/SCALING TRANSFORMS
+            const timeMs = performance.now();
+            for (let i = 0; i < aliens.length; i++) {
+                const alien = aliens[i];
+                ctx.save();
+                ctx.translate(alien.x + alien.w / 2, alien.y + alien.h / 2);
+                
+                // Breath scaling math computation cycles
+                const scale = 1 + Math.sin((timeMs * 0.005) + alien.animOffset) * 0.06;
+                ctx.scale(scale, scale);
+
+                ctx.fillStyle = alien.color;
+                drawRoundedRect(ctx, -alien.w / 2, -alien.h / 2, alien.w, alien.h, 6);
+                ctx.fill();
+
+                // Decorative bright glowing vector core marks
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-6, -4, 3, 3);
+                ctx.fillRect(3, -4, 3, 3);
+                ctx.fillRect(-8, 3, 16, 2);
+
+                ctx.restore();
+            }
+
+            // DRAW PARTICLE SPLASH DRIFTS
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // DRAW PLAYER SHIP VEHICLE (Rounded aesthetic vector layout starship)
+            ctx.save();
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = varColor('--neon-blue', '#00d2ff');
+            ctx.fillStyle = varColor('--neon-blue', '#00d2ff');
+
+            // Draw clean structural fuselage wing spans
+            drawRoundedRect(ctx, ship.x, ship.y + 6, ship.w, ship.h - 6, 6);
+            ctx.fill();
+            
+            // Core engine hood canopy capsule nose configuration
+            ctx.fillStyle = '#ffffff';
+            drawRoundedRect(ctx, ship.x + ship.w / 2 - 5, ship.y, 10, 14, 4);
+            ctx.fill();
+
+            // Twin nozzle side thrust pipes accents
+            ctx.fillStyle = varColor('--neon-pink', '#ff007f');
+            ctx.fillRect(ship.x + 4, ship.y + ship.h, 4, 3);
+            ctx.fillRect(ship.x + ship.w - 8, ship.y + ship.h, 4, 3);
+            
+            ctx.restore();
+        }
+
+        // REUSABLE DRAW HELPER PROCEDURES
+        function drawRoundedRect(context, x, y, width, height, radius) {
+            context.beginPath();
+            context.moveTo(x + radius, y);
+            context.lineTo(x + width - radius, y);
+            context.quadraticCurveTo(x + width, y, x + width, y + radius);
+            context.lineTo(x + width, y + height - radius);
+            context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            context.lineTo(x + radius, y + height);
+            context.quadraticCurveTo(x, y + height, x, y + height - radius);
+            context.lineTo(x, y + radius);
+            context.quadraticCurveTo(x, y, x + radius, y);
+            context.closePath();
+        }
+
+        function varColor(name, fallback) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+        }
+
+        // Draw initial static starfield placement template
+        renderScene();
+    </script>
+</body>
+</html>
